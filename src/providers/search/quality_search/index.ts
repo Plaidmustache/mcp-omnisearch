@@ -11,7 +11,7 @@ import {
   validate_api_key,
 } from '../../../common/utils.js';
 import { config } from '../../../config/env.js';
-import type { BudgetRouter } from '../../../routing/budget_router.js';
+import { BudgetRouter } from '../../../routing/budget_router.js';
 
 interface JinaRerankerRequest {
   model: string;
@@ -40,14 +40,14 @@ export class QualitySearchProvider implements SearchProvider {
     'High-quality search. Searches multiple sources and reranks for relevance. Use ONLY when user explicitly says "quality search".';
 
   private sourceProviders: SearchProvider[] = [];
-  private budgetRouter?: BudgetRouter;
+  private budgetRouter: BudgetRouter;
 
   constructor(
     sourceProviders: SearchProvider[],
     budgetRouter?: BudgetRouter,
   ) {
     this.sourceProviders = sourceProviders;
-    this.budgetRouter = budgetRouter;
+    this.budgetRouter = budgetRouter || new BudgetRouter();
   }
 
   async search(params: QualitySearchParams): Promise<SearchResult[]> {
@@ -70,12 +70,23 @@ export class QualitySearchProvider implements SearchProvider {
         ),
       );
 
-      // 2. Collect all successful results
+      // 2. Collect all successful results and track usage
       const allResults: SearchResult[] = [];
-      for (const result of providerResults) {
-        if (result.status === 'fulfilled') {
+      const successfulProviders: string[] = [];
+      
+      for (let i = 0; i < providerResults.length; i++) {
+        const result = providerResults[i];
+        if (result.status === 'fulfilled' && result.value.length > 0) {
           allResults.push(...result.value);
+          // Track which provider succeeded
+          const providerName = this.sourceProviders[i].name;
+          successfulProviders.push(providerName);
         }
+      }
+
+      // Record usage for each successful provider
+      for (const providerName of successfulProviders) {
+        await this.budgetRouter.recordExplicitUsage(providerName);
       }
 
       if (allResults.length === 0) {
