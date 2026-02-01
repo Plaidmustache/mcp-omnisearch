@@ -2,6 +2,9 @@ import { JinaGroundingProvider } from './enhancement/jina_grounding/index.js';
 import { KagiEnrichmentProvider } from './enhancement/kagi_enrichment/index.js';
 import { KagiSummarizerProvider } from './processing/kagi_summarizer/index.js';
 import { TavilyExtractProvider } from './processing/tavily_extract/index.js';
+import { BraveSearchProvider } from './search/brave/index.js';
+import { QualitySearchProvider } from './search/quality_search/index.js';
+import { TavilySearchProvider } from './search/tavily/index.js';
 import { UnifiedAISearchProvider } from './unified/ai_search.js';
 import { UnifiedExaProcessProvider } from './unified/exa_process.js';
 import { UnifiedFirecrawlProvider } from './unified/firecrawl_process.js';
@@ -18,6 +21,7 @@ import {
 	register_firecrawl_process_provider,
 	register_github_search_provider,
 	register_processing_provider,
+	register_quality_search_provider,
 	register_web_search_provider,
 } from '../server/tools.js';
 
@@ -35,6 +39,18 @@ export const initialize_providers = () => {
 
 	if (has_web_search) {
 		register_web_search_provider(new UnifiedWebSearchProvider());
+	}
+
+	// Initialize quality search if we have Jina + at least 2 search providers
+	const has_brave = is_api_key_valid(config.search.brave.api_key, 'brave');
+	const has_tavily = is_api_key_valid(config.search.tavily.api_key, 'tavily');
+	const has_jina = is_api_key_valid(config.search.jina_search.api_key, 'jina_search');
+
+	if (has_jina && (has_brave || has_tavily)) {
+		const sourceProviders = [];
+		if (has_brave) sourceProviders.push(new BraveSearchProvider());
+		if (has_tavily) sourceProviders.push(new TavilySearchProvider());
+		register_quality_search_provider(new QualitySearchProvider(sourceProviders));
 	}
 
 	// Check if we have GitHub API key

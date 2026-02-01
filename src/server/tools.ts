@@ -13,6 +13,7 @@ import {
 import type { UnifiedExaProcessingProvider } from '../providers/unified/exa_process.js';
 import type { UnifiedFirecrawlProcessingProvider } from '../providers/unified/firecrawl_process.js';
 import type { UnifiedWebSearchProvider } from '../providers/unified/web_search.js';
+import type { QualitySearchProvider } from '../providers/search/quality_search/index.js';
 import { formatBudgetStats } from '../tools/check_search_budget.js';
 
 // Track available providers by category
@@ -25,6 +26,7 @@ export const available_providers = {
 
 class ToolRegistry {
 	private web_search_provider?: UnifiedWebSearchProvider;
+	private quality_search_provider?: QualitySearchProvider;
 	private github_search_provider?: SearchProvider;
 	private ai_search_provider?: SearchProvider;
 	private firecrawl_process_provider?: UnifiedFirecrawlProcessingProvider;
@@ -36,6 +38,11 @@ class ToolRegistry {
 
 	register_web_search_provider(provider: UnifiedWebSearchProvider) {
 		this.web_search_provider = provider;
+		available_providers.search.add(provider.name);
+	}
+
+	register_quality_search_provider(provider: QualitySearchProvider) {
+		this.quality_search_provider = provider;
 		available_providers.search.add(provider.name);
 	}
 
@@ -190,6 +197,60 @@ class ToolRegistry {
 								{
 									type: 'text' as const,
 									text: formatted,
+								},
+							],
+						};
+					} catch (error) {
+						const error_response = create_error_response(
+							error as Error,
+						);
+						return {
+							content: [
+								{
+									type: 'text' as const,
+									text: error_response.error,
+								},
+							],
+							isError: true,
+						};
+					}
+				},
+			);
+		}
+
+		// Register quality search tool
+		// Trigger: "quality search" (explicit only)
+		if (this.quality_search_provider) {
+			server.tool(
+				{
+					name: 'quality_search',
+					description:
+						'High-quality search. Searches multiple sources and reranks for relevance. Use ONLY when user explicitly says "quality search".',
+					schema: v.object({
+						query: v.pipe(v.string(), v.description('Query')),
+						limit: v.optional(
+							v.pipe(
+								v.number(),
+								v.description('Number of results to return (default: 10)'),
+							),
+						),
+					}),
+				},
+				async ({ query, limit }) => {
+					try {
+						const results = await this.quality_search_provider!.search({
+							query,
+							limit,
+						});
+						const safe_results = handle_large_result(
+							results,
+							'quality_search',
+						);
+						return {
+							content: [
+								{
+									type: 'text' as const,
+									text: JSON.stringify(safe_results, null, 2),
 								},
 							],
 						};
@@ -576,6 +637,12 @@ export const register_web_search_provider = (
 	provider: UnifiedWebSearchProvider,
 ) => {
 	registry.register_web_search_provider(provider);
+};
+
+export const register_quality_search_provider = (
+	provider: QualitySearchProvider,
+) => {
+	registry.register_quality_search_provider(provider);
 };
 
 export const register_github_search_provider = (
