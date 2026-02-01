@@ -347,18 +347,16 @@ class ToolRegistry {
 				{
 					name: 'ai_search',
 					description:
-						'Get an AI-synthesized answer with citations. Use for "ai search" or when user wants a comprehensive answer. Always present the results to the user.',
+						'Get an AI-synthesized answer with citations. Use ONLY when user explicitly says "ai search". Expensive - do not trigger on "explain", "summarize", etc. IMPORTANT: Always present the answer to the user after receiving results.',
 					schema: v.object({
 						query: v.pipe(v.string(), v.description('Query')),
-						provider: v.optional(
-							v.pipe(
-								v.picklist([
-									'perplexity',
-									'kagi_fastgpt',
-									'exa_answer',
-								]),
-								v.description('AI provider (default: perplexity)'),
-							),
+						provider: v.pipe(
+							v.picklist([
+								'perplexity',
+								'kagi_fastgpt',
+								'exa_answer',
+							]),
+							v.description('AI provider'),
 						),
 						limit: v.optional(
 							v.pipe(v.number(), v.description('Result limit')),
@@ -366,17 +364,15 @@ class ToolRegistry {
 					}),
 				},
 				async ({ query, provider, limit }) => {
-					// Default to perplexity if no provider specified
-					const selectedProvider = provider || 'perplexity';
 					try {
 						const results = await this.ai_search_provider!.search({
 							query,
-							provider: selectedProvider,
+							provider,
 							limit,
 						} as any);
 						
 						// Track perplexity usage for budget visibility
-						if (selectedProvider === 'perplexity') {
+						if (provider === 'perplexity') {
 							const { BudgetRouter } = await import('../routing/budget_router.js');
 							const budgetRouter = this.web_search_provider
 								? this.web_search_provider.getBudgetRouter()
