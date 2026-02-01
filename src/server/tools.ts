@@ -87,67 +87,15 @@ class ToolRegistry {
 			server.tool(
 				{
 					name: 'web_search',
-					description:
-						'Search the web. Fast and cheap. Returns links and snippets. Use for: "web search", "search", "find", "look up".',
+					description: 'Search the web for information. Returns links and snippets.',
 					schema: v.object({
-						query: v.pipe(v.string(), v.description('Query')),
-						provider: v.optional(
-							v.pipe(
-								v.picklist([
-									'tavily',
-									'brave',
-									'kagi',
-									'exa',
-									'jina_search',
-									'serper',
-									'youcom',
-								]),
-								v.description(
-									'Search provider (optional - uses budget-aware routing if not specified)',
-								),
-							),
-						),
-						limit: v.optional(
-							v.pipe(v.number(), v.description('Result limit')),
-						),
-						include_domains: v.optional(
-							v.pipe(
-								v.array(v.string()),
-								v.description('Domains to include'),
-							),
-						),
-						exclude_domains: v.optional(
-							v.pipe(
-								v.array(v.string()),
-								v.description('Domains to exclude'),
-							),
-						),
-						include_content: v.optional(
-							v.pipe(
-								v.boolean(),
-								v.description(
-									'Include full page content (uses Jina Search)',
-								),
-							),
-						),
+						query: v.pipe(v.string(), v.description('Search query')),
 					}),
 				},
-				async ({
-					query,
-					provider,
-					limit,
-					include_domains,
-					exclude_domains,
-					include_content,
-				}) => {
+				async ({ query }) => {
 					try {
 						const results = await this.web_search_provider!.search({
 							query,
-							provider,
-							limit,
-							include_domains,
-							exclude_domains,
-							include_content,
 						} as any);
 						const safe_results = handle_large_result(
 							results,
@@ -227,23 +175,15 @@ class ToolRegistry {
 			server.tool(
 				{
 					name: 'quality_search',
-					description:
-						'High-quality search. Searches multiple sources and reranks for relevance. Use ONLY when user explicitly says "quality search".',
+					description: 'High-quality search with reranking. Use for important research.',
 					schema: v.object({
-						query: v.pipe(v.string(), v.description('Query')),
-						limit: v.optional(
-							v.pipe(
-								v.number(),
-								v.description('Number of results to return (default: 10)'),
-							),
-						),
+						query: v.pipe(v.string(), v.description('Search query')),
 					}),
 				},
-				async ({ query, limit }) => {
+				async ({ query }) => {
 					try {
 						const results = await this.quality_search_provider!.search({
 							query,
-							limit,
 						});
 						const safe_results = handle_large_result(
 							results,
@@ -280,34 +220,16 @@ class ToolRegistry {
 			server.tool(
 				{
 					name: 'github_search',
-					description: this.github_search_provider.description,
+					description: 'Search GitHub for code and repositories.',
 					schema: v.object({
-						query: v.pipe(v.string(), v.description('Query')),
-						search_type: v.optional(
-							v.pipe(
-								v.picklist(['code', 'repositories', 'users']),
-								v.description('Search type (default: code)'),
-							),
-						),
-						limit: v.optional(
-							v.pipe(v.number(), v.description('Result limit')),
-						),
-						sort: v.optional(
-							v.pipe(
-								v.picklist(['stars', 'forks', 'updated']),
-								v.description('Sort order (repositories only)'),
-							),
-						),
+						query: v.pipe(v.string(), v.description('Search query')),
 					}),
 				},
-				async ({ query, search_type, limit, sort }) => {
+				async ({ query }) => {
 					try {
 						const results = await this.github_search_provider!.search(
 							{
 								query,
-								search_type,
-								limit,
-								sort,
 							} as any,
 						);
 						const safe_results = handle_large_result(
@@ -346,37 +268,21 @@ class ToolRegistry {
 			server.tool(
 				{
 					name: 'ai_search',
-					description:
-						'Get an AI-synthesized answer with citations. Use for "ai search" or when user wants a comprehensive answer. Always present the results to the user.',
+					description: 'Get an AI-generated answer with citations using Perplexity.',
 					schema: v.object({
-						query: v.pipe(v.string(), v.description('Query')),
-						provider: v.optional(
-							v.pipe(
-								v.picklist([
-									'perplexity',
-									'kagi_fastgpt',
-									'exa_answer',
-								]),
-								v.description('AI provider (default: perplexity)'),
-							),
-						),
-						limit: v.optional(
-							v.pipe(v.number(), v.description('Result limit')),
-						),
+						query: v.pipe(v.string(), v.description('Search query')),
 					}),
 				},
-				async ({ query, provider, limit }) => {
-					// Default to perplexity if no provider specified
-					const selectedProvider = provider || 'perplexity';
+				async ({ query }) => {
 					try {
 						const results = await this.ai_search_provider!.search({
 							query,
-							provider: selectedProvider,
-							limit,
+							provider: 'perplexity',
 						} as any);
 						
 						// Track perplexity usage for budget visibility
-						if (selectedProvider === 'perplexity') {
+						// Always track perplexity usage
+						{
 							const { BudgetRouter } = await import('../routing/budget_router.js');
 							const budgetRouter = this.web_search_provider
 								? this.web_search_provider.getBudgetRouter()
