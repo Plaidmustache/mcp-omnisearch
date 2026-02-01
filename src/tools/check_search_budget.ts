@@ -43,6 +43,20 @@ export function formatBudgetStats(stats: BudgetStats): string {
 		lines.push('- No lifetime providers configured');
 	}
 
+	// Paid APIs (no free tier)
+	const paidApiEntries = Object.entries(stats.paidApis || {});
+	if (paidApiEntries.length > 0) {
+		lines.push('\n## Paid APIs (no free tier)');
+		for (const [provider, data] of paidApiEntries) {
+			const costStr = data.estimatedCost > 0 
+				? ` (~$${data.estimatedCost.toFixed(2)} spent)`
+				: '';
+			lines.push(
+				`- **${provider}**: ${data.used} calls @ $${data.costPerQuery}/query${costStr}`,
+			);
+		}
+	}
+
 	// Provider health (circuit breaker status)
 	const healthEntries = Object.entries(stats.health || {});
 	const unhealthyProviders = healthEntries.filter(([_, h]) => h.status !== 'healthy');
@@ -59,7 +73,7 @@ export function formatBudgetStats(stats: BudgetStats): string {
 		}
 	}
 
-	// Paid usage (if any)
+	// Paid usage (providers that exceeded free tier)
 	const paidTotal = Object.values(stats.paid).reduce((a, b) => a + b, 0);
 	if (paidTotal > 0) {
 		lines.push('\n## Paid Usage (beyond free tier)');
@@ -89,6 +103,10 @@ export function formatBudgetStats(stats: BudgetStats): string {
 		(sum, [_, data]) => sum + data.limit,
 		0,
 	);
+	const totalPaidApiCost = paidApiEntries.reduce(
+		(sum, [_, data]) => sum + data.estimatedCost,
+		0,
+	);
 
 	if (totalMonthlyLimit > 0) {
 		lines.push(
@@ -100,8 +118,11 @@ export function formatBudgetStats(stats: BudgetStats): string {
 			`- Lifetime: ${totalLifetimeUsed.toLocaleString()}/${totalLifetimeLimit.toLocaleString()} used total`,
 		);
 	}
+	if (totalPaidApiCost > 0) {
+		lines.push(`- Paid API spend: ~$${totalPaidApiCost.toFixed(2)}`);
+	}
 	if (paidTotal > 0) {
-		lines.push(`- Paid searches: ${paidTotal.toLocaleString()}`);
+		lines.push(`- Overage searches: ${paidTotal.toLocaleString()}`);
 	}
 
 	return lines.join('\n');

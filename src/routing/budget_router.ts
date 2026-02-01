@@ -26,6 +26,7 @@ export interface RouteOptions {
 export interface BudgetStats {
 	monthly: Record<string, { used: number; limit: number; remaining: number }>;
 	lifetime: Record<string, { used: number; limit: number; remaining: number }>;
+	paidApis: Record<string, { used: number; costPerQuery: number; estimatedCost: number }>;
 	paid: Record<string, number>;
 	health: Record<string, { status: 'healthy' | 'degraded' | 'down'; failures: number; cooldownUntil?: string }>;
 }
@@ -103,12 +104,16 @@ export class BudgetRouter {
 	 * Generate the storage key for a provider
 	 * Monthly providers: "brave:2026-02"
 	 * Lifetime providers: "exa:lifetime"
+	 * Paid providers: "perplexity:paid"
 	 */
 	private getStorageKey(provider: ProviderName): string {
 		const limitConfig = PROVIDER_LIMITS[provider];
 		if (limitConfig.type === 'monthly') {
 			const month = new Date().toISOString().slice(0, 7); // "2026-02"
 			return `${provider}:${month}`;
+		}
+		if (limitConfig.type === 'paid') {
+			return `${provider}:paid`;
 		}
 		return `${provider}:lifetime`;
 	}
@@ -214,10 +219,17 @@ export class BudgetRouter {
 
 	/**
 	 * Record usage for explicit provider selection (public method)
+	 * For paid-only providers like perplexity, set isPaidProvider=true
 	 */
-	async recordExplicitUsage(provider: string): Promise<void> {
+	async recordExplicitUsage(provider: string, isPaidProvider: boolean = false): Promise<void> {
 		if (provider in PROVIDER_LIMITS) {
-			await this.recordUsage(provider as ProviderName, false);
+			const limitConfig = PROVIDER_LIMITS[provider as ProviderName];
+			if (limitConfig.type === 'paid' || isPaidProvider) {
+				// Paid-only provider - just increment the paid key directly
+				await this.storage.increment(`${provider}:paid`);
+			} else {
+				await this.recordUsage(provider as ProviderName, false);
+			}
 		}
 	}
 
@@ -314,6 +326,7 @@ export class BudgetRouter {
 		const stats: BudgetStats = {
 			monthly: {},
 			lifetime: {},
+			paidApis: {},
 			paid: {},
 			health: {},
 		};
@@ -329,7 +342,7 @@ export class BudgetRouter {
 					limit: limitConfig.limit,
 					remaining: Math.max(0, limitConfig.limit - used),
 				};
-			} else {
+			} else if (limitConfig.type === 'lifetime') {
 				const key = `${provider}:lifetime`;
 				const used = allUsage[key] ?? 0;
 				stats.lifetime[provider] = {
@@ -337,14 +350,28 @@ export class BudgetRouter {
 					limit: limitConfig.limit,
 					remaining: Math.max(0, limitConfig.limit - used),
 				};
+			} else if (limitConfig.type === 'paid') {
+				// Paid APIs - no free tier, just track usage
+				const key = `${provider}:paid`;
+				const used = allUsage[key] ?? 0;
+				const costPerQuery = (limitConfig as any).cost_per_query || 0;
+				stats.paidApis[provider] = {
+					used,
+					costPerQuery,
+					estimatedCost: used * costPerQuery,
+				};
 			}
 
-			// Paid usage
-			const paidKey = `${provider}:paid`;
-			stats.paid[provider] = allUsage[paidKey] ?? 0;
+			// Paid usage (for providers with free tier that went over)
+			if (limitConfig.type !== 'paid') {
+				const paidKey = `${provider}:paid`;
+				stats.paid[provider] = allUsage[paidKey] ?? 0;
+			}
 
-			// Health status (circuit breaker)
-			stats.health[provider] = this.getHealthStatus(providerName);
+			// Health status (circuit breaker) - only for routed providers
+			if (limitConfig.type !== 'paid') {
+				stats.health[provider] = this.getHealthStatus(providerName);
+			}
 		}
 
 		return stats;

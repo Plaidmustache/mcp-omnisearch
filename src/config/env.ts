@@ -24,6 +24,7 @@ export const REDIS_URL = process.env.REDIS_URL;
  * Provider limits for budget-aware routing
  * Monthly limits reset on the 1st of each month
  * Lifetime limits are one-time allocations
+ * Paid providers have no free tier - just tracked for visibility
  */
 export const PROVIDER_LIMITS = {
 	brave: { limit: 2000, type: 'monthly' as const },
@@ -32,6 +33,7 @@ export const PROVIDER_LIMITS = {
 	jina_search: { limit: 1000, type: 'lifetime' as const },
 	serper: { limit: 2500, type: 'lifetime' as const },
 	youcom: { limit: 16000, type: 'lifetime' as const },
+	perplexity: { limit: 0, type: 'paid' as const, cost_per_query: 0.005 },
 } as const;
 
 export type ProviderName = keyof typeof PROVIDER_LIMITS;

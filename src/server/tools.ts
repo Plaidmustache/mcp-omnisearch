@@ -367,6 +367,13 @@ class ToolRegistry {
 							provider,
 							limit,
 						} as any);
+						
+						// Track perplexity usage for budget visibility
+						if (provider === 'perplexity' && this.web_search_provider) {
+							const budgetRouter = this.web_search_provider.getBudgetRouter();
+							await budgetRouter.recordExplicitUsage('perplexity', true);
+						}
+						
 						const safe_results = handle_large_result(
 							results,
 							'ai_search',
