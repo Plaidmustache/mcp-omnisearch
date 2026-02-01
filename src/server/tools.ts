@@ -75,11 +75,13 @@ class ToolRegistry {
 
 	setup_tool_handlers(server: McpServer<GenericSchema>) {
 		// Register web search tool
+		// Triggers: "web search", "search", "find", "look up"
 		if (this.web_search_provider) {
 			server.tool(
 				{
 					name: 'web_search',
-					description: this.web_search_provider.description,
+					description:
+						'Search the web. Fast and cheap. Returns links and snippets. Use for: "web search", "search", "find", "look up".',
 					schema: v.object({
 						query: v.pipe(v.string(), v.description('Query')),
 						provider: v.optional(
@@ -275,11 +277,13 @@ class ToolRegistry {
 		}
 
 		// Register AI search tool
+		// Trigger: "ai search" (explicit only - expensive)
 		if (this.ai_search_provider) {
 			server.tool(
 				{
 					name: 'ai_search',
-					description: this.ai_search_provider.description,
+					description:
+						'Get an AI-synthesized answer with citations. Use ONLY when user explicitly says "ai search". Expensive - do not trigger on "explain", "summarize", etc.',
 					schema: v.object({
 						query: v.pipe(v.string(), v.description('Query')),
 						provider: v.pipe(
