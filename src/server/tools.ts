@@ -347,7 +347,7 @@ class ToolRegistry {
 				{
 					name: 'ai_search',
 					description:
-						'Get an AI-synthesized answer with citations. Use ONLY when user explicitly says "ai search". Expensive - do not trigger on "explain", "summarize", etc. IMPORTANT: After receiving results, always summarize the key findings for the user in your response.',
+						'Get an AI-synthesized answer with citations. Use ONLY when user explicitly says "ai search". Expensive - do not trigger on "explain", "summarize", etc.',
 					schema: v.object({
 						query: v.pipe(v.string(), v.description('Query')),
 						provider: v.pipe(
@@ -370,7 +370,7 @@ class ToolRegistry {
 							provider,
 							limit,
 						} as any);
-
+						
 						// Track perplexity usage for budget visibility
 						if (provider === 'perplexity') {
 							const { BudgetRouter } = await import('../routing/budget_router.js');
@@ -379,22 +379,16 @@ class ToolRegistry {
 								: new BudgetRouter();
 							await budgetRouter.recordExplicitUsage('perplexity', true);
 						}
-
-						// Format as human-readable since Perplexity already synthesized the answer
-						// This encourages the model to present it conversationally rather than treating JSON as "complete"
-						const answer = results[0]?.snippet || 'No answer found for this query.';
-						const sources = results.slice(1)
-							.filter((r: any) => r.url && r.title)
-							.map((r: any) => `- ${r.title}: ${r.url}`)
-							.join('\n') || 'No additional sources available.';
-
-						const formatted_response = `## Answer\n\n${answer}\n\n## Sources\n${sources}`;
-
+						
+						const safe_results = handle_large_result(
+							results,
+							'ai_search',
+						);
 						return {
 							content: [
 								{
 									type: 'text' as const,
-									text: formatted_response,
+									text: JSON.stringify(safe_results, null, 2),
 								},
 							],
 						};
