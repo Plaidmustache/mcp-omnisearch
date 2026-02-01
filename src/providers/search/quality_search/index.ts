@@ -183,7 +183,7 @@ export class QualitySearchProvider implements SearchProvider {
       if (this.budgetRouter && response.usage?.total_tokens) {
         // Note: Reranker uses shared Jina token pool
         // We could track this separately if needed
-        console.log(
+        console.error(
           `[quality_search] Reranker used ${response.usage.total_tokens} tokens`,
         );
       }
