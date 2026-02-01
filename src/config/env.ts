@@ -6,6 +6,8 @@ export const BRAVE_API_KEY = process.env.BRAVE_API_KEY;
 export const KAGI_API_KEY = process.env.KAGI_API_KEY;
 export const GITHUB_API_KEY = process.env.GITHUB_API_KEY;
 export const EXA_API_KEY = process.env.EXA_API_KEY;
+export const SERPER_API_KEY = process.env.SERPER_API_KEY;
+export const YOU_API_KEY = process.env.YOU_API_KEY;
 
 // AI provider API keys
 export const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
@@ -14,6 +16,25 @@ export const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
 export const JINA_AI_API_KEY = process.env.JINA_AI_API_KEY;
 export const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
 export const FIRECRAWL_BASE_URL = process.env.FIRECRAWL_BASE_URL;
+
+// Storage configuration
+export const REDIS_URL = process.env.REDIS_URL;
+
+/**
+ * Provider limits for budget-aware routing
+ * Monthly limits reset on the 1st of each month
+ * Lifetime limits are one-time allocations
+ */
+export const PROVIDER_LIMITS = {
+	brave: { limit: 2000, type: 'monthly' as const },
+	tavily: { limit: 1000, type: 'monthly' as const },
+	exa: { limit: 2000, type: 'lifetime' as const },
+	jina_search: { limit: 1000, type: 'lifetime' as const },
+	serper: { limit: 2500, type: 'lifetime' as const },
+	youcom: { limit: 16000, type: 'lifetime' as const },
+} as const;
+
+export type ProviderName = keyof typeof PROVIDER_LIMITS;
 
 // Provider configuration
 export const config = {
@@ -43,6 +64,24 @@ export const config = {
 			base_url: 'https://api.exa.ai',
 			timeout: 30000, // 30 seconds
 		},
+		jina_search: {
+			api_key: JINA_AI_API_KEY,
+			base_url: 'https://s.jina.ai',
+			timeout: 30000, // 30 seconds
+		},
+		serper: {
+			api_key: SERPER_API_KEY,
+			base_url: 'https://google.serper.dev',
+			timeout: 30000, // 30 seconds
+		},
+		youcom: {
+			api_key: YOU_API_KEY,
+			base_url: 'https://api.ydc-index.io',
+			timeout: 30000, // 30 seconds
+		},
+	},
+	storage: {
+		redis_url: REDIS_URL,
 	},
 	ai_response: {
 		perplexity: {
@@ -166,6 +205,12 @@ export const validate_config = () => {
 
 	if (!EXA_API_KEY) missing_keys.push('EXA_API_KEY');
 	else available_keys.push('EXA_API_KEY');
+
+	if (!SERPER_API_KEY) missing_keys.push('SERPER_API_KEY');
+	else available_keys.push('SERPER_API_KEY');
+
+	if (!YOU_API_KEY) missing_keys.push('YOU_API_KEY');
+	else available_keys.push('YOU_API_KEY');
 
 	// Log available keys
 	if (available_keys.length > 0) {

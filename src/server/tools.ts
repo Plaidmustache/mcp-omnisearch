@@ -12,6 +12,8 @@ import {
 } from '../common/utils.js';
 import type { UnifiedExaProcessingProvider } from '../providers/unified/exa_process.js';
 import type { UnifiedFirecrawlProcessingProvider } from '../providers/unified/firecrawl_process.js';
+import type { UnifiedWebSearchProvider } from '../providers/unified/web_search.js';
+import { formatBudgetStats } from '../tools/check_search_budget.js';
 
 // Track available providers by category
 export const available_providers = {
@@ -22,7 +24,7 @@ export const available_providers = {
 };
 
 class ToolRegistry {
-	private web_search_provider?: SearchProvider;
+	private web_search_provider?: UnifiedWebSearchProvider;
 	private github_search_provider?: SearchProvider;
 	private ai_search_provider?: SearchProvider;
 	private firecrawl_process_provider?: UnifiedFirecrawlProcessingProvider;
@@ -32,7 +34,7 @@ class ToolRegistry {
 	private enhancement_providers: Map<string, EnhancementProvider> =
 		new Map();
 
-	register_web_search_provider(provider: SearchProvider) {
+	register_web_search_provider(provider: UnifiedWebSearchProvider) {
 		this.web_search_provider = provider;
 		available_providers.search.add(provider.name);
 	}
@@ -80,9 +82,21 @@ class ToolRegistry {
 					description: this.web_search_provider.description,
 					schema: v.object({
 						query: v.pipe(v.string(), v.description('Query')),
-						provider: v.pipe(
-							v.picklist(['tavily', 'brave', 'kagi', 'exa']),
-							v.description('Search provider'),
+						provider: v.optional(
+							v.pipe(
+								v.picklist([
+									'tavily',
+									'brave',
+									'kagi',
+									'exa',
+									'jina_search',
+									'serper',
+									'youcom',
+								]),
+								v.description(
+									'Search provider (optional - uses budget-aware routing if not specified)',
+								),
+							),
 						),
 						limit: v.optional(
 							v.pipe(v.number(), v.description('Result limit')),
@@ -99,6 +113,14 @@ class ToolRegistry {
 								v.description('Domains to exclude'),
 							),
 						),
+						include_content: v.optional(
+							v.pipe(
+								v.boolean(),
+								v.description(
+									'Include full page content (uses Jina Search)',
+								),
+							),
+						),
 					}),
 				},
 				async ({
@@ -107,6 +129,7 @@ class ToolRegistry {
 					limit,
 					include_domains,
 					exclude_domains,
+					include_content,
 				}) => {
 					try {
 						const results = await this.web_search_provider!.search({
@@ -115,6 +138,7 @@ class ToolRegistry {
 							limit,
 							include_domains,
 							exclude_domains,
+							include_content,
 						} as any);
 						const safe_results = handle_large_result(
 							results,
@@ -125,6 +149,45 @@ class ToolRegistry {
 								{
 									type: 'text' as const,
 									text: JSON.stringify(safe_results, null, 2),
+								},
+							],
+						};
+					} catch (error) {
+						const error_response = create_error_response(
+							error as Error,
+						);
+						return {
+							content: [
+								{
+									type: 'text' as const,
+									text: error_response.error,
+								},
+							],
+							isError: true,
+						};
+					}
+				},
+			);
+
+			// Register check_search_budget tool
+			server.tool(
+				{
+					name: 'check_search_budget',
+					description:
+						'Check remaining search budget across all providers. Shows free tier usage, one-time credits, and paid consumption.',
+					schema: v.object({}),
+				},
+				async () => {
+					try {
+						const budgetRouter =
+							this.web_search_provider!.getBudgetRouter();
+						const stats = await budgetRouter.getUsageStats();
+						const formatted = formatBudgetStats(stats);
+						return {
+							content: [
+								{
+									type: 'text' as const,
+									text: formatted,
 								},
 							],
 						};
@@ -506,7 +569,7 @@ export const register_tools = (server: McpServer<GenericSchema>) => {
 
 // Export methods to register providers
 export const register_web_search_provider = (
-	provider: SearchProvider,
+	provider: UnifiedWebSearchProvider,
 ) => {
 	registry.register_web_search_provider(provider);
 };

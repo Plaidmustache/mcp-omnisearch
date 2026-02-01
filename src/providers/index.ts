@@ -23,11 +23,15 @@ import {
 
 export const initialize_providers = () => {
 	// Check if we have at least one web search provider API key
+	// Includes new budget-aware providers: jina_search, serper, youcom
 	const has_web_search =
 		is_api_key_valid(config.search.tavily.api_key, 'tavily') ||
 		is_api_key_valid(config.search.brave.api_key, 'brave') ||
 		is_api_key_valid(config.search.kagi.api_key, 'kagi') ||
-		is_api_key_valid(config.search.exa.api_key, 'exa');
+		is_api_key_valid(config.search.exa.api_key, 'exa') ||
+		is_api_key_valid(config.search.jina_search.api_key, 'jina_search') ||
+		is_api_key_valid(config.search.serper.api_key, 'serper') ||
+		is_api_key_valid(config.search.youcom.api_key, 'youcom');
 
 	if (has_web_search) {
 		register_web_search_provider(new UnifiedWebSearchProvider());

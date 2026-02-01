@@ -65,6 +65,7 @@
 		"@tmcp/adapter-valibot": "^0.1.5",
 		"@tmcp/transport-stdio": "^0.4.1",
 		"octokit": "^5.0.5",
+		"redis": "^4.7.0",
 		"tmcp": "^1.19.0",
 		"valibot": "^1.2.0"
 	}
