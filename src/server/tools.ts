@@ -177,46 +177,49 @@ class ToolRegistry {
 					}
 				},
 			);
-
-			// Register check_search_budget tool
-			server.tool(
-				{
-					name: 'check_search_budget',
-					description:
-						'Check remaining search budget across all providers. Shows free tier usage, one-time credits, and paid consumption.',
-					schema: v.object({}),
-				},
-				async () => {
-					try {
-						const budgetRouter =
-							this.web_search_provider!.getBudgetRouter();
-						const stats = await budgetRouter.getUsageStats();
-						const formatted = formatBudgetStats(stats);
-						return {
-							content: [
-								{
-									type: 'text' as const,
-									text: formatted,
-								},
-							],
-						};
-					} catch (error) {
-						const error_response = create_error_response(
-							error as Error,
-						);
-						return {
-							content: [
-								{
-									type: 'text' as const,
-									text: error_response.error,
-								},
-							],
-							isError: true,
-						};
-					}
-				},
-			);
 		}
+
+		// Register check_search_budget tool (always available)
+		server.tool(
+			{
+				name: 'check_search_budget',
+				description:
+					'Check remaining search budget across all providers. Shows free tier usage, one-time credits, and paid consumption.',
+				schema: v.object({}),
+			},
+			async () => {
+				try {
+					// Use web_search provider's router if available, otherwise create standalone
+					const { BudgetRouter } = await import('../routing/budget_router.js');
+					const budgetRouter = this.web_search_provider
+						? this.web_search_provider.getBudgetRouter()
+						: new BudgetRouter();
+					const stats = await budgetRouter.getUsageStats();
+					const formatted = formatBudgetStats(stats);
+					return {
+						content: [
+							{
+								type: 'text' as const,
+								text: formatted,
+							},
+						],
+					};
+				} catch (error) {
+					const error_response = create_error_response(
+						error as Error,
+					);
+					return {
+						content: [
+							{
+								type: 'text' as const,
+								text: error_response.error,
+							},
+						],
+						isError: true,
+					};
+				}
+			},
+		);
 
 		// Register quality search tool
 		// Trigger: "quality search" (explicit only)
@@ -369,8 +372,11 @@ class ToolRegistry {
 						} as any);
 						
 						// Track perplexity usage for budget visibility
-						if (provider === 'perplexity' && this.web_search_provider) {
-							const budgetRouter = this.web_search_provider.getBudgetRouter();
+						if (provider === 'perplexity') {
+							const { BudgetRouter } = await import('../routing/budget_router.js');
+							const budgetRouter = this.web_search_provider
+								? this.web_search_provider.getBudgetRouter()
+								: new BudgetRouter();
 							await budgetRouter.recordExplicitUsage('perplexity', true);
 						}
 						
